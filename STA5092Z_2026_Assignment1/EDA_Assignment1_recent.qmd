@@ -11,7 +11,7 @@ author:
     #       city: Cape Town
     #       state: Western Cape
     #       postal-code: 7701
-          
+
 abstract: | 
    I will doing some EDA on very messy data, yay!
    
@@ -42,25 +42,26 @@ execute:
   message: false
   echo: false
   
-  
 knitr:
   opts_knit:
-    root.dir: "C:/Users/Admin/Desktop/UCT_Masters_Coursework/EDA_Assignment_1/STA5092Z_2026_Assignment1"  
+    root.dir: "C:/Users/Admin/Desktop/UCT_Masters_Coursework/EDA_Assignment_1/STA5092Z_2026_Assignment1" 
+    
+bibliography: references.bib   
 ---
 
 ```{r setup, include=FALSE}
-
 knitr::opts_knit$set(root.dir = normalizePath("C:/Users/Admin/Desktop/UCT_Masters_Coursework/EDA_Assignment_1/STA5092Z_2026_Assignment1"))
 
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 
+knitr::opts_chunk$set(dev = "pdf")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 
-
+getwd()
 ```
 
-quarto install tinytex
+```{r,include=FALSE}
 
-```{r}
 # Import packages
 #| echo: false
 library(lubridate)
@@ -70,49 +71,35 @@ library(tidyverse)
 library(scales)
 library(ggridges)
 library(webshot2)
+library(plotly)
+library(here)
 # library(kableExtra)
 # library(kable)
 ```
 
 # Part 1- Data Wrangling
 
-## Load Data
-
 2\) Load data and transform into tibble objects
 
 ```{r data_load}
 #| echo: false
-
-# setwd('C:/Users/Admin/Desktop/UCT_Masters_Coursework/EDA_Assignment_1/STA5092Z_2026_Assignment1')
-
-
-fledg_survival=tibble::as_tibble(read_csv('EDA_Assinment_1_Submission/Data/Data.Bourne_FledglingSurvival.csv'))
-
+fledg_survival=tibble::as_tibble(read.csv('Data/Data.Bourne_FledglingSurvival.csv'))
 fledg_survival_meta=tibble::as_tibble(read.csv('Data/Data.Bourne_FledglingSurvival_Meta.csv'))
 
 nest_all=tibble::as_tibble(read.csv('Data/Data.Bourne_NestlingsAllData.csv'))
-
-
 nest_all_meta=tibble::as_tibble(read.csv('Data/Data.Bourne_NestlingsAllData_Meta.csv'))
 
 nest_succ=tibble::as_tibble(read.csv('Data/Data.Bourne_NestSuccess.csv'))
 nest_succ_meta=tibble::as_tibble(read.csv('Data/Data.Bourne_NestSuccess_Meta.csv'))
 
-sort(names(fledg_survival))
-
-View(nest_all)
 
 ```
 
 Rename columns in nest_all to match those to fledg_survival. In this case, columns 'GRP' and 'Group' mean the same thing in both dataframes, so 'GRP' is renamed to 'Group' in the nest_all data frame.
 
-## Data Exploration
+3\) *DataFrame Column Data Types*
 
-3\)
-
-### DataFrame Column Data Types
-
-*Key Findings before merging:*
+Key Findings before merging:
 
 **fledg_survival** dataframe
 
@@ -167,8 +154,6 @@ unique_nest_ids_ns=nest_succ%>%
 
 
 
-
-
 tab_diff=data.frame(
   attribute=c('number of rows','number of columns','number of unique Bird IDs', 'number of unique Nest IDs'),
   nest_all_data=c(nrow(nest_all),ncol(nest_all),unique_brd_ids_nest, unique_nest_ids_nest),
@@ -177,8 +162,6 @@ tab_diff=data.frame(
   
 
 )
-
-
 
 
 knitr::kable(tab_diff) 
@@ -196,13 +179,13 @@ knitr::kable(tab_diff)
 
 ```{r data_join}
 #| echo: false
+#| label: tbl-cars-kable-arg
 #| tbl-cap: "Data type mismatch between common columns in nest_all and fledge survival datasets"
 
 
 fledg_survival_=fledg_survival %>% rename(GRP=Group) 
 # Find common columns in all three dataframes 
 common_cols=intersect(names(fledg_survival_), names(nest_all) )
-common_cols
 
 # Select the common cols in both data frames
 fledg_survival_common =fledg_survival_ %>% select( all_of(common_cols))
@@ -214,13 +197,14 @@ nest_all_common =nest_all %>% select( all_of(common_cols))
  
 # compare data types between dataframes
 mismatches =compare_df_cols(fledg_survival_common, nest_all_common, return = "mismatch")
+
 knitr::kable(mismatches)
 #,caption="Data type mismatch between common columns in nest_all and fledge survival datasets") 
 
 
 ```
 
-Columns, **GrpSizeAD** and **GrpSizeTotal** in particular are different data types in both data sets. In particular, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain string "#NA" values- so these are being read in as chartersColumns GrpSizeAD and GrpSizeTotal have different data types in both datasets. Specifically, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain the string "#NA" values, which means they are being read as characters.Columns GrpSizeAD and GrpSizeTotal have different data types in both datasets. Specifically, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain the string "#NA" values, which means they are being read as characters.
+Columns, **GrpSizeAD** and **GrpSizeTotal** are different data types in both data sets. In particular, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain string "#NA" values- so these are being read in as chartersColumns GrpSizeAD and GrpSizeTotal have different data types in both datasets. Specifically, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain the string "#NA" values, which means they are being read as characters.Columns GrpSizeAD and GrpSizeTotal have different data types in both datasets. Specifically, both GrpSizeAD and GrpSizeTotal in the nest_all dataset contain the string "#NA" values, which means they are being read as characters.
 
 ```{r distinct_grp_size}
 #| echo: false
@@ -239,7 +223,7 @@ nest_all %>% distinct(GrpSizeAD) %>% pull()
 
 To correct for this, these columns are mutated as integer columns in the nest_all data set. Doing this will preserve the numerical values in the columns as integers, whilst the character values will be stored as NA which R will recognize as null values.
 
-### **Merge Data Sets**
+**Merge Data Sets**
 
 nest_all contains more rows and unique NestIDs than the fledge_survival data set. The latter only contains data of birds that survived to fledge, whilst the former contains information on all birds- regardless of their survival status; fledge_survival is a subset of nest_all. As such, in order to preserve information from both data sets, the data sets will be merged using a left join- which preserves all information from nest_all whilst getting additional fledging information of birds that fleged from fledg_survival.
 
@@ -247,10 +231,6 @@ nest_all contains more rows and unique NestIDs than the fledge_survival data set
 
 #| echo: false
 
-
-#  GrpSizeAD and GrpSizeTotal in nest_all df to the ints
-# convert date into ymd
-# Coercing #NA values into integers will forces those values to be R nas, which are much easier to work with 
 
 
 nest_all_clean=nest_all %>% mutate(Date=dmy(Date),GrpSizeAD=as.integer(GrpSizeAD),GrpSizeTotal=as.integer(GrpSizeTotal) )
@@ -261,9 +241,7 @@ fledg_survival_clean=fledg_survival_ %>% mutate(Date=dmy(Date))
 
 piedbabbler=left_join(nest_all_clean,fledg_survival_clean, by=common_cols)
 
-head(piedbabbler)
 
-sort(names(fledg_survival))
 ```
 
 # Part 2- Data Summaries and Visualizations
@@ -272,8 +250,8 @@ sort(names(fledg_survival))
 
 ```{r row_count_check}
 #| echo: false
+#| tbl-cap: "Sample Size Per Year"
 
-#| tbl-cap: "sample size per year"
 # # number of rows
 # all_birds=piedbabbler %>% distinct(BirdID) %>% pull(BirdID)
 # 
@@ -292,38 +270,60 @@ samp_per_yr=piedbabbler %>% mutate(dt_year=year(Date)) %>%
   arrange(dt_year) %>% 
   rename(year=dt_year)
 
-knitr::kable(samp_per_yr)
-#,caption=" Piedblabber Sample Size (n) per year") 
+knitr::kable(samp_per_yr %>% rename(`sample size`=n)) 
 ```
 
 2\)
 
-#### Null Value Check
+*Null Value Check*
 
-```{r null_val_check}
+```{r null_val_check,fig.width = 8}
+library(plotly)
 
 #| echo: false
+#| fig-cap: "Null Count Per Feature"
 
 check_cols=c('GrpSizeAD','GrpSizeTotal','BroodSize','Mass','TMaxMeas','No.ChicksFledge','Rain90','Drought')
 
 # Count of null values per column
 # Show as percentage
-piedbabbler %>% select (all_of(check_cols)) %>% 
-  mutate(across(all_of(check_cols), ~is.na(.))) %>% 
-  summarise(across(everything(), ~sum(.))) 
 
+
+fig_plt=piedbabbler %>% select (all_of(check_cols)) %>% 
+  mutate(across(all_of(check_cols), ~is.na(.))) %>% 
+  summarise(across(everything(), ~sum(.))) %>% 
+   pivot_longer(cols=check_cols,
+               names_to='Column_Variable',
+               values_to = 'value') %>% 
+  arrange(desc(value)) %>% 
+  mutate(n_count=nrow(piedbabbler)) %>% 
+  mutate(perntage_null=round((value/n_count),2)) %>% 
+  mutate(name = fct_reorder(Column_Variable, desc(value))) %>% 
+
+  ggplot(aes(x=name, y=perntage_null)) +
+  geom_bar(stat = "identity")+
+  geom_text(aes(label = value),
+            vjust = -0.4,        
+            color = "blue")+
+  scale_y_continuous(labels = scales::percent, limits=c(0,0.26) )+
+    labs(title = "Percentage of Null Values Per Column",x='column',
+       y = "percentage null values") +
+    theme_minimal()
+  
+fig_plt
   
 
 ```
 
-35% of values i
+7 of 8 selected columns contain at least one null value; the **Rain90** column has the most, with 149 missing values, accounting for \~25% of the data.
 
-#### Outlier Analysis
+*Outlier Analysis*
 
-Outlier Definition: An outlier is an individual point of data that is distant from other points in the data set. It is an anomaly in the dataset that may be caused by a range of errors in capturing, processing or manipulating data. \* comeback and reference
+**Outlier Definition:** An outlier is an individual point of data that is distant from other points in the data set. It is an anomaly in the dataset that may be caused by a range of errors in capturing, processing or manipulating data. @seldon_outliers
 
-```{r out_lier}
+```{r out_lier,fig.height = 6}
 #| echo: false
+#| fig-cap: "Box Plot Per Feature"
 
 # An outlier is an individual point of data that is distant from other points in the dataset. It is an anomaly in the dataset that may be caused by a range of errors in capturing, processing or manipulating data. 
 
@@ -342,50 +342,67 @@ piedbabbler %>% select (all_of(check_cols)) %>%
        y = "values") +
   theme_minimal()
   
-
-
 ```
 
-From their respective boxplots, the following columns seem to contain outliers, relative to their own distributions:
-
--   TMaxMeas
-
--   Mass
+Based on their respective boxplots, the following columns appear to contain outliers relative to their individual distributions:
 
 -   BroodSize
 
+-   Drought
+
+-   GrpSizeAD
+
 -   GrpSizeTotal
 
-3\)
+-   Mass
 
-#### Mass and Date per Nest: Longitudinal Dataframe
+-   TMaxMeas
+
+3\) *Mass and Date per Nest: Longitudinal Dataframe*
+
+According to the nest_all metadata, the **GRP** column provides the "Group Identity" per bird. The same identifiers are used in the **NestID** column as well. This column will be used as the proxy to identify which nest a bird belongs to going forward. The **sum** is used as the aggregate to calculate mass per nest per **year.**
 
 ```{r mass_per_nest_id}
 
 #| echo: false
 
 # Create via groupby
-# Usin
+# Comeback and check tomorrow
 
-piedbabbler %>% group_by(NestID,Date) %>% 
-  summarize(total_mass=sum(Mass))
+nest_tab=piedbabbler %>% 
+  mutate(dt_year=year(Date)) %>% 
+  group_by(GRP,dt_year) %>% 
+  summarize(`Total Mass`=sum(Mass)) %>% 
+  rename(Nest=GRP, Year=dt_year ) %>% 
+  pivot_wider(
+    names_from = Year,
+    values_from = `Total Mass`
+  )
+
+knitr::kable(nest_tab)
 ```
 
-4\)
+4\) *Mass vs Teamparature Tipping Point \* might have to check or verify if these are missing at random*
 
-TMaxMeas has 35% of its values as nulls. As such, the aggregate mean Mass value per bucketed TMaxMeas will be use to adjust for this
+TMaxMeas has 6% of its values as nulls. As such, the aggregate mean Mass value per **binned** values of TMaxMeas will be use to adjust for this. Null values will be replaced with the mean TMaxMeas values
 
-```{r crit_tem}
+```{r crit_tem, fig.width = 7}
 
-# Come back and fix buckets
 #| echo: false
-piedbabbler %>% select(Mass,TMaxMeas) %>%
-    drop_na() %>% 
+
+# Compute mean
+temp_mean=mean(piedbabbler$TMaxMeas,na.rm = TRUE)
+
+#Repalce null values with mean
+piedbabbler %>%
+    mutate(TMaxMeas=case_when( is.na(TMaxMeas)~ temp_mean,
+                               TRUE ~ TMaxMeas) )  %>% 
 mutate(TMaxMeas_bin = cut(TMaxMeas, seq( min(TMaxMeas), max(TMaxMeas) + 3, 3), right = FALSE)) %>%
 group_by(TMaxMeas_bin) %>%
 summarise(mean_mass=mean(Mass)) %>%
   ggplot(aes(x=TMaxMeas_bin,y = mean_mass,group=1)) +
   geom_line()+
+  geom_point() +
   geom_vline(xintercept = '[21.5,24.5)', color = "blue", linetype = "dashed", size = 1.5)+
   
   annotate("text", 
@@ -395,38 +412,84 @@ summarise(mean_mass=mean(Mass)) %>%
            color = "blue",
            angle = 0)+
   labs(title = "Average Chick Mass by TMaxMeas ",
-       x='TMaxMeas bucket',y = "average chick mass") +
-  theme_minimal()
+       x='Max Ambient Air Pressure Bin',y = "average mass") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 60))
 
   
 
 
 ```
 
-5)  
+Observing the plot above, the average mass shows a decline when the maximum ambient air temperature exceeds 21.5 degrees (using the minimum value of the bin). The plot below filters specifically for these temperatures.
 
-Mass over time per nest per season
+```{r crit_tem_box, fig.width = 7}
 
-Since we have way too distinct NestIDs, the following grouping approach will be used:\
+#| echo: false
 
-1.  First get the size of each nest, defined by the count of birds in each nest- since this value, changes over time, the starting nest size for each group will be used
+# Compute mean
+temp_mean=mean(piedbabbler$TMaxMeas,na.rm = TRUE)
 
-2.  Use this count as the grouping variable to compare mass over time
+#Repalce null values with mean
+piedbabbler %>%
+    mutate(TMaxMeas=case_when( is.na(TMaxMeas)~ temp_mean,
+                               TRUE ~ TMaxMeas) )  %>% 
+mutate(TMaxMeas_bin = cut(TMaxMeas, seq( min(TMaxMeas), max(TMaxMeas) + 3, 3), right = FALSE)) %>%
+  select(Mass,TMaxMeas_bin) %>% 
+  ggplot(aes(x=TMaxMeas_bin,y=Mass)) +
+  geom_boxplot()+
+  # annotate("text", 
+  #          x = '[24.5,27.5)',  # Adjust x for horizontal positioning relative to the line
+  #          y = 50,              # Adjust y for vertical positioning (based on plot's y-scale)
+  #          label = paste("Tcritical"), 
+  #          color = "blue",
+  #          angle = 0)+
+  labs(title = "Bird Mass Distribution by TMaxMeas ",
+       x='Max Ambient Air Pressure Bin',y = "Mass") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 60))
+```
 
-3.  Show the individual nestID groups for the "best" performing birds
+5.  *Mass over time per nest per season*
 
-4.  Also, since there are not enough observations for each nest ID, per year, the year variable will be normalized relatve to the start date/year of the nest
+Again, the GRP column will be used as the proxy for the Nest that birds belong to. Since there are over 40 distinct GRP/Nest identifiers, an alternative procedure is used to first filter and identify for "high-mass" nests over time:
+
+1.  First get the size of each nest, defined by the count of birds in each nest, **GrpSizeTotal.** Since this value, changes over time, the **starting nest size** for each group will be used for this.
+
+2.  Since the Dates are inconsistent for each group/nest, the Date column is converted to an **Observation ID.** This essentially counts and orderes instances of measurement for each nest, normalizing the time time instances for all groups.
+
+3.  Use this Group/Nest as the grouping variable to compare average mass over time over different seasons.
+
+4.  Filter for the best per performing nests based on their starting nest size, which hopefully decreases the number of nests/GRP identifiers.
+
+5.  Plot the individual average masses over time for these "best performing" nests.
 
 ```{r}
-piedbabbler  %>% distinct(GrpSizeTotal)  %>% arrange(GrpSizeTotal) %>% pull(GrpSizeTotal)
+# Get starting nest size
+starting_counts=piedbabbler  %>% distinct(Date,GrpSizeTotal,GRP) %>% 
+  arrange(GRP,Date) %>% 
+  group_by(GRP) %>% 
+  mutate(instance=row_number()) %>% 
+  filter(instance==1) %>% 
+  select(GRP,instance,GrpSizeTotal) %>% 
+  rename(nest_size=GrpSizeTotal)
+
+
 
 
 ```
 
-```{r plt_c_g}
-# Split this code over multiple cells
+```{r plt_c_g,fig.width = 8}
+
+#| warning: false
+#| message: false
 library(ggplot2)
 library(plotly)
+
+
+cols=c(`2`='red',`3`='pink', `4`='blue', `5`='thistle',`6`='yellow', `7`='orange', `8`='yellowgreen', `9`='magenta', `10`='purple', `11`='grey', `12`='peachpuff4')
+
+
 factor_ord=sapply(c(1,2,3,4,5),as.factor)
 
 season_groups=c(1,2,3)
@@ -436,8 +499,7 @@ seasons_val=piedbabbler %>% distinct(Season) %>%
   mutate(num_index_break=cut(num_index,breaks=3,labels=c(1,2,3))) 
 seasons_val
 
-nest_sizes=piedbabbler %>% group_by(GRP) %>% # use the mean 
-  summarize(nest_size=round(mean(GrpSizeTotal)))
+nest_sizes=starting_counts
 
 piedbabbler_2=left_join(seasons_val,piedbabbler,by='Season')
 piedbabbler_2=left_join(piedbabbler_2,nest_sizes,by='GRP')
@@ -455,27 +517,22 @@ fig_1=piedbabbler_2 %>% filter(num_index_break==1) %>%
   arrange(nest_size) %>% 
   group_by(nest_size,Season) %>% 
   mutate(obs_id = factor(row_number())) %>% 
-  ggplot(aes(x=obs_id,y =total_nest_mass,group = 1,color=nest_size)) +
+  ggplot(aes(x=obs_id,y =total_nest_mass,color=nest_size)) + #,color=nest_size
   geom_point() +
   geom_line(aes(group = nest_size))+
-  facet_wrap(~Season,scales='free',ncol=2) +
+  facet_wrap(~Season,scales='free') +
+  scale_color_manual(values = cols)+
   labs(title = "Chick Mass Over Time Per Nest ID: Seasons C to G ",
        x='Observation ID',y = "Chick Mass") +
   theme_minimal()
 fig_1
 
-
-```
-
-```{r}
-piedbabbler %>% select(Date,Group,GrpSizeTotal,GRP) %>% 
-  filter(GRP=='HAR') %>% 
-  arrange(Date) %>% 
-  summarize(mean_nest_size=round(mean(GrpSizeTotal)))
 ```
 
 ```{r plt_h_j}
 
+#| warning: false
+#| message: false
 
 fig_2=piedbabbler_2 %>% filter(num_index_break==2) %>% 
   group_by(Date,Season,nest_size) %>%
@@ -488,6 +545,7 @@ fig_2=piedbabbler_2 %>% filter(num_index_break==2) %>%
   geom_point() +
   geom_line(aes(group = nest_size))+
   facet_wrap(~Season,scales='free',ncol=2) +
+  scale_color_manual(values = cols)+
   labs(title = "Chick Mass Over Time Per Nest ID: Seasons H to L ",
        x='Observation ID',y = "Chick Mass") +
   theme_minimal()
@@ -497,6 +555,11 @@ fig_2
 ```
 
 ```{r plt_m_r}
+
+
+#| warning: false
+#| message: false
+
 fig_3=piedbabbler_2 %>% filter(num_index_break==3) %>% 
   group_by(Date,Season,nest_size) %>%
   summarize(total_nest_mass=mean(Mass)) %>%
@@ -508,7 +571,8 @@ fig_3=piedbabbler_2 %>% filter(num_index_break==3) %>%
   geom_point() +
   geom_line(aes(group = nest_size))+
   facet_wrap(~Season,scales='free',ncol=2) +
-  labs(title = "Chick Mass Over Time Per Nest ID: Seasons C to G ",
+  scale_color_manual(values = cols)+
+  labs(title = "Chick Mass Over Time Per Nest ID: Seasons M to R ",
        x='Observation ID',y = "Chick Mass") +
   theme_minimal()
 fig_3
@@ -523,11 +587,13 @@ piedbabbler_2 %>% distinct(GRP,nest_size) %>%
 
 ```
 
-```{r mess_ev,fig.width = 15}
-#,fig.width = 10
+```{r mess_ev,fig.height = 25}
+
+#| warning: false
+#| message: false
 
 fig_4=piedbabbler_2 %>% 
-  filter(nest_size==5) %>% 
+  filter(nest_size==3) %>% 
   group_by(Date,GRP,Season) %>% 
   summarize(total_nest_mass=sum(Mass)) %>% 
   group_by(GRP,Season) %>% 
@@ -535,31 +601,31 @@ fig_4=piedbabbler_2 %>%
   ggplot(aes(x=obs_id,y =total_nest_mass,color=GRP)) +
   geom_point() +
   geom_line(aes(group = GRP))+
-  facet_grid(.~Season,scales='free_y') +
+  facet_grid(Season~.,scales='free') +
   labs(title = "Chick Mass Over Time Per Nest ID: Seasons M to R",
        x='Observation ID',y = "Chick Mass") +
   theme_minimal()
-ggplotly(fig_4)
+fig_4
 ```
 
-6\)
-
-**Yearly Average Mass, Faceted by Season**
-
-```{r}
-str(piedbabbler)
-```
+6\) *Yearly Average Mass Over Time (Yearly), Faceted By Drought*
 
 ```{r chick_mass_drought}
 #| echo: false
+
+season_labels <- c(
+  `1` = "Drought",
+  `0` = "No Drought"
+)
 piedbabbler %>% mutate(dt_year=year(Date)) %>% 
-  select(dt_year,Mass,BroodSize,GrpSizeAD,No.ChicksFledge,Rain90,Season,Drought) %>% group_by(dt_year, Drought) %>% #,Drought Season
+group_by(dt_year, Drought) %>% #,Drought Season
   summarize(avg_mass=mean(Mass),avg_brsize=mean(BroodSize),avg_grp_size=mean(GrpSizeAD), avg_chick_fledge=mean(No.ChicksFledge), avg_rain=mean(Rain90)) %>% 
   mutate(Drought=as.character(Drought) ) %>% 
   drop_na(Drought)%>% 
        ggplot(aes(x=dt_year,y = avg_mass)) +
-  geom_line() + #geom_c(stat='identity') 
-  facet_wrap(~Drought , scales = "free_y" ) +
+  geom_line() + #geom_c(stat='identity') +
+  geom_point()+
+  facet_grid(Drought~. , scales = "free_x",labeller = as_labeller(season_labels) ) +
   labs(title = "Chick Mass Over Time Per Nest ID ",
        x='date',y = "Average Chick Mass") +
   theme_minimal()
@@ -568,7 +634,7 @@ piedbabbler %>% mutate(dt_year=year(Date)) %>%
   
 ```
 
-**Average Bird Size Over Time- Faceted By Season**
+*Average Brood Size Over Time (Yearly), Faceted By Drought*
 
 ```{r chick_size_drought}
 #| echo: false
@@ -578,17 +644,20 @@ season_labels <- c(
   `0` = "No Drought"
 )
 piedbabbler %>% mutate(dt_year=year(Date)) %>% 
-  select(dt_year,Mass,BroodSize,GrpSizeAD,No.ChicksFledge,Rain90,Season,Drought) %>% group_by(dt_year, Drought) %>% #,Drought Season
+ group_by(dt_year, Drought) %>% #,Drought Season
   summarize(avg_mass=mean(Mass),avg_brsize=mean(BroodSize),avg_grp_size=mean(GrpSizeAD), avg_chick_fledge=mean(No.ChicksFledge), avg_rain=mean(Rain90)) %>% 
   mutate(Drought=as.character(Drought) ) %>% 
   drop_na(Drought)%>% 
        ggplot(aes(x=dt_year,y = avg_brsize)) +
-  geom_line() + #geom_c(stat='identity') 
-  facet_wrap(~Drought , scales = "free_y",labeller = as_labeller(season_labels) ) +
-  labs(title = "Average Bird Size Over Time Faceted by Season ",
-       x='date',y = "Average Bird Size") +
+  
+  geom_line() + geom_point()+
+  facet_grid(Drought~. , scales = "free_x",labeller = as_labeller(season_labels) ) +
+  labs(title = "Average Brood Size Over Time Faceted by Season ",
+       x='year',y = "Average Brood Size") +
   theme_minimal()
 ```
+
+*Average Group Size Total Over Time (Yearly), Faceted By Drought*
 
 ```{r grp_size_drought}
 #| echo: false
@@ -599,17 +668,20 @@ season_labels <- c(
   `0` = "No Drought"
 )
 piedbabbler %>% mutate(dt_year=year(Date)) %>% 
-  select(dt_year,Mass,BroodSize,GrpSizeTotal,No.ChicksFledge,Rain90,Season,Drought) %>% group_by(dt_year, Drought) %>% #,Drought Season
+group_by(dt_year, Drought) %>% #,Drought Season
   summarize(avg_mass=mean(Mass),avg_brsize=mean(BroodSize),avg_grp_size=mean(GrpSizeTotal), avg_chick_fledge=mean(No.ChicksFledge), avg_rain=mean(Rain90)) %>% 
   mutate(Drought=as.character(Drought) ) %>% 
   drop_na(Drought)%>% 
        ggplot(aes(x=dt_year,y = avg_grp_size)) +
-  geom_line() + #geom_c(stat='identity') 
-  facet_wrap(~Drought , scales = "free_y" ,labeller = as_labeller(season_labels)) +
-  labs(title = "Average Group Size Over Time Faceted by Season ",
-       x='date',y = "Average Group Size") +
+  
+  geom_line() + geom_point()+
+  facet_grid(Drought~., scales = "free_x" ,labeller = as_labeller(season_labels)) +
+  labs(title = "Average Brood Size Over Time Faceted by Season ",
+       x='year',y = "Average Brood Size") +
   theme_minimal()
 ```
+
+*Average Number of Fledging Chicks Over Time (Yearly), Faceted By Drought*
 
 ```{r chick_fledge_drought}
 #| echo: false
@@ -626,12 +698,14 @@ piedbabbler %>% mutate(dt_year=year(Date)) %>% drop_na(No.ChicksFledge) %>%
   mutate(Drought=as.character(Drought) ) %>%
   drop_na(Drought)%>%
        ggplot(aes(x=dt_year,y = avg_chick_fledge)) +
-  geom_line() + #geom_c(stat='identity')
-  facet_wrap(~Drought , scales = "free_y" ,labeller = as_labeller(season_labels)) +
+  geom_line() + geom_point()+
+  facet_grid(Drought~. , scales = "free_x" ,labeller = as_labeller(season_labels)) +
   labs(title = "Yearly Average Number of Fledging Chicks Over Time Faceted by Season ",
        x='year',y = "Average Number of Fledging Chicks") +
   theme_minimal()
 ```
+
+*Average Rain Fall Over Time (Yearly), Faceted By Drought*
 
 ```{r rain_drought}
 piedbabbler %>% mutate(dt_year=year(Date)) %>%
@@ -643,22 +717,22 @@ summarize(avg_rain=mean(TotRain)) %>%
 mutate(Drought=as.character(Drought) ) %>%
 drop_na(Drought)%>%
      ggplot(aes(x=dt_year,y = avg_rain)) +
-geom_line() + #geom_c(stat='identity')
-facet_wrap(~Drought , scales = "free_y" ,labeller = as_labeller(season_labels)) +
+geom_line() +geom_point()+
+facet_grid(Drought~. , scales = "free_x" ,labeller = as_labeller(season_labels)) +
 labs(title = "Yearly Average Rain Fall Faceted by Season ",
      x='year',y = "Average Rain ") +
 theme_minimal()
 ```
 
-6\) Rate of mass change per day per nesting
+6\) *Rate of mass change per day per nesting*
 
 Steps for finding these suspicious entries
 
-1.  First group Mass by Group and Date to get Mass per Nest over time
+1.  First group Mass by GRP and Date to get Mass per Nest over time
 2.  Get lagged values of Date and Mass
 3.  Calculate the percentage Mass change for each row per nest group
 4.  Calculate the date difference, in days, between Date values and lagged date values
-5.  Filter for date differences equal to 1 then check which growth rates are suspicious (\>50%)
+5.  Filter for date differences equal to or close to 1 then check which growth rates are suspicious (\>50%)
 
 ```{r sus}
 
@@ -666,38 +740,41 @@ Steps for finding these suspicious entries
 
 # This data is not daily!!!!
 
-piedbabbler  %>% 
-  select(Date,Group,Mass) %>% 
-  arrange(Group) %>% 
-  group_by(Date,Group) %>% 
-  summarize(total_mass=sum(Mass)) %>% 
-  group_by(Group) %>% 
-  arrange(Group) %>% 
-  group_by(Group) %>% 
+gr_rates=piedbabbler  %>% 
+  select(Date,GRP,Mass) %>% 
+  arrange(GRP) %>% 
+  group_by(Date,GRP) %>% 
+  summarize(total_mass=mean(Mass)) %>% 
+  group_by(GRP) %>% 
+  arrange(Date) %>% 
   mutate(lagged_mass=lag(total_mass,n=1), lagged_date=lag(Date,n=1)) %>%
- mutate(growth_rate=((total_mass-lagged_mass)/ lagged_mass)*100,date_diff=as.numeric(Date-lagged_date )) %>% 
-  drop_na(growth_rate) %>% 
-  filter(date_diff==1) %>% 
- distinct(Group)
+ mutate(growth_rate=((lagged_mass-total_mass)/ total_mass)*100,date_diff=as.numeric(Date-lagged_date)) %>% 
+ filter(!is.na(growth_rate)) #%>%
+ #filter(date_diff<10)# %>%
+ # distinct(GRP)
 
   
-
-  
+# Distribution of Growth Rates
+gr_rates %>% 
+ggplot(aes(x = growth_rate)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
+  labs(title = "Distribution of Nest growth rates ", x = "growth rate", y = "Count")+
+  theme_minimal()
 ```
 
-All these above values are NAs, so I guess there was no data for these values(?)
+Group UNK saw a 25% increase group total mass in just 2 days, although given the distribution of the growth rates across Nests/Groups this does not appear to be anomoloues
 
-8)  
+8)  *Survivor Bias*
 
 ```{r mass_fleg_ind}
 piedbabbler %>% 
-  select(Group,Mass,FledgeDate) %>% 
+  select(GRP,Mass,FledgeDate) %>% 
   mutate(FledgeDate=na_if(FledgeDate,'')) %>% 
   mutate(fledged=case_when(
     is.na(FledgeDate)~0,
     !is.na(FledgeDate)~1
   )) %>% 
-  group_by(fledged,Group) %>% 
+  group_by(fledged,GRP) %>% 
   summarize(tot_mass=sum(Mass)) %>%
   mutate(fledged=factor(fledged,levels=c(0,1))) %>% 
   ggplot(aes(y = tot_mass,color=fledged)) +
@@ -717,23 +794,17 @@ SurvFledge) %>%
   group_by(fledged,AgeMeasD) %>% 
   summarise(avg_mass=mean(Mass)) %>% 
   mutate(fledged=factor(fledged,levels=c(0,1))) %>% 
-  drop_na() %>% 
-  pivot_wider(
-    names_from=fledged,
-    values_from=avg_mass
-  ) %>% 
-    rename('Fledged'='1','Not_Fledged'='0') %>% 
-  mutate(mass_diff=Fledged-Not_Fledged) %>% 
-  ggplot(aes(x=AgeMeasD,y = mass_diff)) +
-  geom_col() +
-  labs(title = "Average Hatchling Mass Difference By Hatchling Age- Factored By Flegding Status",x='Age(days)',
+  #rename('Fledged'='1','Not_Fledged'='0') %>% 
+  ggplot(aes(x=AgeMeasD,y = avg_mass,colour =fledged )) +
+  geom_line() +geom_point()+
+  labs(title = "Average Mass By Hatchling Age- Factored By Flegding Status",x='Age(days)',
        y = "avg hatchling mass") +
   theme_minimal()
 
 
 ```
 
-9\)
+9\) *Distribution of Adult Helpers*
 
 First check how the number of adult helpers are distributed across the data
 
@@ -750,7 +821,7 @@ piedbabbler %>% select(GrpSizeAD) %>%
 
 In this case, most nests had adult heplers of 3. Thus, to normalize the data, average fledgling count per adult helper count we'll be use to compare.
 
-9)  
+9)  *Adult Helper Diminishing Return*
 
 ```{r help_cnt}
 # We need to look at the incremental increase of adding more chicks
@@ -796,6 +867,8 @@ piedbabbler %>% drop_na(No.ChicksFledge) %>%
 
 The average number fledged chicks sees an increase from 3 to 6, however it sees its most marked sustained decrease from 6 to 8 ( although this rebounds after 8)
 
+9)  *Cumulative View*
+
 ```{r cum_per}
 
 ch_sum_df=piedbabbler %>% drop_na(No.ChicksFledge) %>% 
@@ -833,15 +906,15 @@ piedbabbler %>% drop_na(No.ChicksFledge) %>%
 
 ```
 
-10) 
-
-Comeback\*
+10) *Interaction Effect*
 
 Nestiling Mass Per Drought Per Nest Size
 
-Define big nest size as GrpSizeTotal \>6
+-   Define big nest size as GrpSizeTotal \>6
 
-Small nest size GrpSizeTotal \<6
+-   Small nest size GrpSizeTotal \<6
+
+-   Only filtered for periods of drought
 
 ```{r drough_comp}
 
@@ -870,9 +943,7 @@ piedbabbler %>% filter(Drought==1) %>%
 
 Smaller nests seem to survive longer over periods of drought\*
 
-11\)
-
-Seasonal Heatmap
+11\) *Seasonal Heatmap*
 
 We need to bucket the ambient values
 
@@ -880,7 +951,7 @@ Nesting mortality=number of dead birds/total number of birds
 
 Come back and explain
 
-```{r heat_map}
+```{r heat_map, fig.width=16}
 # calculate nestling mortality
 surv=piedbabbler %>% select(Season, TMaxMeas,SurvInd,NestID) %>% 
   drop_na(TMaxMeas) %>% 
@@ -906,9 +977,7 @@ left_join(surv,counts, by=c('TMaxMeas_bin','Season')) %>%
   labs(title = "Heatmap of Mortality Per Season and Ambient Air Temprature",x='Ambient Air Bucket',y='Breeding Season') # Add a title
 ```
 
-12\)
-
-Ridge Plot
+12\) *Ridge Plot*
 
 ```{r ridge}
 piedbabbler %>% 
@@ -923,7 +992,7 @@ piedbabbler %>%
 
 **Season Q** has the most bimodal distribution
 
-13\) Comeback and think if a nice plot- Sankey Plot?
+13\) *Survival Flow Sankey Plot*
 
 ```{r sankey}
 #  # Data Prep
@@ -1010,7 +1079,7 @@ sankey=sankeyNetwork(
   Target = "target",      # Column name for target in 'links'
   Value = "value",        # Column name for flow value in 'links'
   NodeID = "name",        # Column name for node names in 'nodes'
-  fontSize = 10,          # Adjust font size
+  fontSize = 15,          # Adjust font size
   nodeWidth = 12          # Adjust node width
 )
 
